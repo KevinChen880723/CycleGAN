@@ -1,0 +1,24 @@
+output_folder: /work/kevin8ntust/output
+
+data:
+  domainA_path: ../Experiment/data/CityScapes/leftImg8bit/train
+  domainB_path: ../Experiment/data/leftImg8bit_foggyDBF/train
+  format_domainA: png
+  format_domainB: png
+  image_size: -1  # If image_size == -1, don't resize the image
+  crop_size: 256  # The size for the random crop
+  max_data_per_epoch: 1500
+
+train:
+  total_epochs: 200
+  start_reduce_lr_epoch: 100
+  batch_size: 1
+  lr: 0.0002
+  device: cuda
+  lambda:
+    identity: -1 # 5.0 (If identity is set to -1, loss_G_total will not including identity loss)
+    cycle: 10.0
+
+model:
+  use_variant: true
+  num_hourglass: 8  # At most 8
