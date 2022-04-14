@@ -184,7 +184,7 @@ class CycleGAN:
 
         device = self.cfg['val']['device']
         iters_per_epoch = len(self.dataset_val)
-        pbar = tqdm(enumerate(self.dataloader), total=iters_per_epoch, desc='Epoch: {}/{}'.format(epoch, self.cfg_train['total_epochs']))
+        pbar = tqdm(enumerate(self.dataloader), total=iters_per_epoch, desc='Visualizing')
         for i, data in pbar:
             self.optimG.zero_grad()
             self.realA = data['A'].to(device)

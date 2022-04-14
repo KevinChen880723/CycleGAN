@@ -9,7 +9,7 @@ class Generator(nn.Module):
         if not use_variant:
             print("Currently, using the original architecture to build the generator, num_hourglass will not be considered.")
         for i in range(num_hourglass if use_variant else 1):
-            sequence.append(HourGlass(num_hourglass/2, use_variant))
+            sequence.append(HourGlass(num_hourglass/2 if use_variant else 1, use_variant))
         self.model = nn.Sequential(*sequence)
 
     def forward(self, x):

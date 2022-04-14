@@ -13,10 +13,10 @@ train:
   lr: 0.0002
   device: cuda
   batch_size: 1
-  total_epochs: 20
-  start_reduce_lr_epoch: 10
+  total_epochs: 200
+  start_reduce_lr_epoch: 100
   model_description: OriginalCycleGAN
-  save_freq: 2
+  save_freq: 1
   lambda:
     identity: -1 # 5.0 (If identity is set to -1, loss_G_total will not including identity loss)
     cycle: 10.0
