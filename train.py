@@ -1,14 +1,17 @@
-import torch 
-import time
-import argparse
+import os
+import cv2
 import yaml
+import argparse
 from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
-from data.dataset import CycleGANDataset
-from torch.utils.data import DataLoader
 from itertools import chain
-from utils import fix_seeds, history_buffer
+
+import torch 
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
 from model import *
+from data.dataset import CycleGANDataset
+from utils import fix_seeds, history_buffer
 
 class LR_Lambda:
     def __init__(self, total_epoch, start_reduce_lr_epoch) -> None:
@@ -43,12 +46,23 @@ class CycleGAN:
                             self.cfg_data['domainB_path'],
                             self.cfg_data['image_size'],
                             self.cfg_data['crop_size'],
-                            self.cfg_data['format_domainA'],
-                            self.cfg_data['format_domainB'])
+                            self.cfg_data['max_data_per_epoch'],
+                            self.cfg_data['name_filter_domainA'],
+                            self.cfg_data['name_filter_domainB'])
 
         self.CreateDataloaders(self.cfg_train['batch_size'])
 
         self.CreateLossFunctions()
+
+        self.CreateValidationDatasets(self.cfg['val']['data']['domainA_path'], 
+                                      self.cfg['val']['data']['domainB_path'],
+                                      self.cfg['val']['data']['image_size'],
+                                      self.cfg['val']['data']['crop_size'],
+                                      self.cfg['val']['num_visualization_img'],
+                                      self.cfg['val']['data']['name_filter_domainA'],
+                                      self.cfg['val']['data']['name_filter_domainB'])
+
+        self.CreateValidationDataloaders(batch_size=1)
 
     def CreateModels(self, num_hourglass, use_variant, device='cuda'):
         self.netG_A2B = Generator(num_hourglass, use_variant).to(device)
@@ -65,33 +79,22 @@ class CycleGAN:
         self.lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(self.optimG, lr_lambda=lr_lambda)
         self.lr_scheduler_D = torch.optim.lr_scheduler.LambdaLR(self.optimD, lr_lambda=lr_lambda)
         
-    def CreateDatasets(self, domainA_path, domainB_path, image_size, crop_size, format_domainA = 'png', format_domainB = 'png'):
-        self.dataset = CycleGANDataset(domainA_path, format_domainA, domainB_path, format_domainB, image_size, crop_size)
+    def CreateDatasets(self, domainA_path, domainB_path, image_size, crop_size, max_data_per_epoch, name_filter_domainA = '*.png', name_filter_domainB = '*.png'):
+        self.dataset = CycleGANDataset(domainA_path, name_filter_domainA, domainB_path, name_filter_domainB, image_size, crop_size, max_data_per_epoch, mode='train')
 
     def CreateDataloaders(self, batch_size=1):
         self.dataloader = DataLoader(self.dataset, batch_size, shuffle=True)
+
+    def CreateValidationDatasets(self, domainA_path, domainB_path, image_size, crop_size, max_data_per_epoch, name_filter_domainA = '*.png', name_filter_domainB = '*.png'):
+        self.dataset_val = CycleGANDataset(domainA_path, name_filter_domainA, domainB_path, name_filter_domainB, image_size, crop_size, max_data_per_epoch, mode='val')
+
+    def CreateValidationDataloaders(self, batch_size=1):
+        self.dataloader_val = DataLoader(self.dataset_val, batch_size, shuffle=False)
 
     def CreateLossFunctions(self):
         self.cycle_loss = torch.nn.L1Loss()
         self.identity_loss = torch.nn.L1Loss()
         self.adversarial_loss = torch.nn.MSELoss()
-
-    def train_one_epoch(self, epoch):
-        device = self.cfg['train']['device']
-        iters_per_epoch = len(self.dataset) // self.cfg_train['batch_size']
-        pbar = tqdm(enumerate(self.dataloader), total=iters_per_epoch, desc='Epoch: {}/{}'.format(epoch, self.cfg_train['total_epochs']))
-        for i, data in pbar:
-            self.optimG.zero_grad()
-            self.realA = data['A'].to(device)
-            self.realB = data['B'].to(device)
-
-            ''' 1. Update the two generators '''
-            self.get_G_predictions()
-            self.update_G()
-            
-            ''' 2. Update the two discriminators '''
-            self.get_D_predictions()
-            self.update_D()
 
     def get_G_predictions(self):
         self.fakeB = self.netG_A2B(self.realA)
@@ -150,7 +153,7 @@ class CycleGAN:
         self.lr_scheduler_D.step()
         self.lr_scheduler_G.step()
 
-    def save_model(self, model_description, epoch, lowest_loss):
+    def save_model(self, epoch):
         check_point = {
             'model_state_dict': {
                 'GA2B': self.netG_A2B.state_dict(),
@@ -164,12 +167,60 @@ class CycleGAN:
             },
             'scheduler_state_dict': {
                 'lr_scheduler_G': self.lr_scheduler_G.state_dict(),
-                'lr_scheduler_D': self.lr_scheduler_D.state_dict(),
+                'lr_scheduler_D': self.lr_scheduler_D.state_dict()
             },
-            'epoch': epoch,
-            'lowest_loss': lowest_loss
+            'epoch': epoch
         }
-        torch.save(check_point, "{}/{}/epoch_{}.pth".format(self.opt['output_folder'], model_description, epoch))
+        if not os.path.isdir('{}/{}/model'.format(self.cfg['output_folder'], self.cfg_train['model_description'])):
+            os.makedirs('{}/{}/model'.format(self.cfg['output_folder'], self.cfg_train['model_description']))
+        torch.save(check_point, "{}/{}/model/epoch_{}.pth".format(self.cfg['output_folder'], self.cfg_train['model_description'], epoch))
+
+    def visualize(self, epoch):
+        def get_visualization(tensor):
+            tensor = tensor.permute(1, 2, 0)
+            tensor = torch.clamp((tensor * 0.5 + 0.5), 0.0, 1.0) * 255
+            tensor = tensor.to(torch.uint8, device='cpu').numpy()
+            return tensor
+
+        device = self.cfg['val']['device']
+        iters_per_epoch = len(self.dataset_val)
+        pbar = tqdm(enumerate(self.dataloader), total=iters_per_epoch, desc='Epoch: {}/{}'.format(epoch, self.cfg_train['total_epochs']))
+        for i, data in pbar:
+            self.optimG.zero_grad()
+            self.realA = data['A'].to(device)
+            self.realB = data['B'].to(device)
+            
+            with torch.no_grad():
+                pred_A2B = self.netG_A2B(self.realA)
+                pred_B2A = self.netG_B2A(self.realB)
+            img_pred_A2B = get_visualization(pred_A2B)
+            img_pred_B2A = get_visualization(pred_B2A)
+
+            if not os.path.isdir('{}/{}/visualization/A2B'.format(self.cfg['output_folder'], self.cfg_train['model_description'])):
+                os.makedirs('{}/{}/visualization/A2B'.format(self.cfg['output_folder'], self.cfg_train['model_description']))
+            if not os.path.isdir('{}/{}/visualization/B2A'.format(self.cfg['output_folder'], self.cfg_train['model_description'])):
+                os.makedirs('{}/{}/visualization/B2A'.format(self.cfg['output_folder'], self.cfg_train['model_description']))
+
+            cv2.imwrite('{}/{}/visualization/A2B/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i) , img_pred_A2B)
+            cv2.imwrite('{}/{}/visualization/B2A/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i) , img_pred_B2A)
+            
+
+    def train_one_epoch(self, epoch):
+        device = self.cfg['train']['device']
+        iters_per_epoch = len(self.dataset) // self.cfg_train['batch_size']
+        pbar = tqdm(enumerate(self.dataloader), total=iters_per_epoch, desc='Epoch: {}/{}'.format(epoch, self.cfg_train['total_epochs']))
+        for i, data in pbar:
+            self.optimG.zero_grad()
+            self.realA = data['A'].to(device)
+            self.realB = data['B'].to(device)
+
+            ''' 1. Update the two generators '''
+            self.get_G_predictions()
+            self.update_G()
+            
+            ''' 2. Update the two discriminators '''
+            self.get_D_predictions()
+            self.update_D()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -185,20 +236,6 @@ if __name__ == '__main__':
     for epoch in range(cfg_train['total_epochs']):
         cycle_gan.train_one_epoch(epoch)
         cycle_gan.update_scheduler()
-
-    # tensor = torch.arange(1, 100, device='cuda')
-    # print(torch.cuda.memory_allocated('cuda'))
-    # tensor_cpu = tensor.cpu()
-    # print(torch.cuda.memory_allocated('cuda'))
-    # del tensor
-    # print(torch.cuda.memory_allocated('cuda'))
-    # tensor1 = torch.arange(1, 100, device='cuda')
-    # print(torch.cuda.memory_allocated('cuda'))
-    # tensor2 = torch.arange(1, 100, device='cuda')
-    # print(torch.cuda.memory_allocated('cuda'))
-    # tensor3 = torch.arange(1, 100, device='cuda')
-    # print(torch.cuda.memory_allocated('cuda'))
-    # tensor4 = torch.arange(1, 100, device='cuda')
-    # print(torch.cuda.memory_allocated('cuda'))
-    # tensor5 = torch.arange(1, 100, device='cuda')
-    # print(torch.cuda.memory_allocated('cuda'))
+        if (epoch+1) % cfg_train['save_freq'] == 0:
+            cycle_gan.save_model(epoch)
+        cycle_gan.visualize()
