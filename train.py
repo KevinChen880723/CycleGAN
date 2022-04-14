@@ -177,14 +177,15 @@ class CycleGAN:
 
     def visualize(self, epoch):
         def get_visualization(tensor):
+            tensor = torch.squeeze(tensor)
             tensor = tensor.permute(1, 2, 0)
             tensor = torch.clamp((tensor * 0.5 + 0.5), 0.0, 1.0) * 255
-            tensor = tensor.to(torch.uint8, device='cpu').numpy()
+            tensor = tensor.to(dtype=torch.uint8, device='cpu').numpy()
             return tensor
 
         device = self.cfg['val']['device']
         iters_per_epoch = len(self.dataset_val)
-        pbar = tqdm(enumerate(self.dataloader), total=iters_per_epoch, desc='Visualizing')
+        pbar = tqdm(enumerate(self.dataloader_val), total=iters_per_epoch, desc='Visualizing')
         for i, data in pbar:
             self.optimG.zero_grad()
             self.realA = data['A'].to(device)
@@ -196,13 +197,13 @@ class CycleGAN:
             img_pred_A2B = get_visualization(pred_A2B)
             img_pred_B2A = get_visualization(pred_B2A)
 
-            if not os.path.isdir('{}/{}/visualization/A2B'.format(self.cfg['output_folder'], self.cfg_train['model_description'])):
-                os.makedirs('{}/{}/visualization/A2B'.format(self.cfg['output_folder'], self.cfg_train['model_description']))
-            if not os.path.isdir('{}/{}/visualization/B2A'.format(self.cfg['output_folder'], self.cfg_train['model_description'])):
-                os.makedirs('{}/{}/visualization/B2A'.format(self.cfg['output_folder'], self.cfg_train['model_description']))
+            if not os.path.isdir('{}/{}/visualization/A2B/{}'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i)):
+                os.makedirs('{}/{}/visualization/A2B/{}'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i))
+            if not os.path.isdir('{}/{}/visualization/B2A/{}'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i)):
+                os.makedirs('{}/{}/visualization/B2A/{}'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i))
 
-            cv2.imwrite('{}/{}/visualization/A2B/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i) , img_pred_A2B)
-            cv2.imwrite('{}/{}/visualization/B2A/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i) , img_pred_B2A)
+            cv2.imwrite('{}/{}/visualization/A2B/{}/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i, epoch) , img_pred_A2B)
+            cv2.imwrite('{}/{}/visualization/B2A/{}/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i, epoch) , img_pred_B2A)
             
 
     def train_one_epoch(self, epoch):
@@ -224,7 +225,7 @@ class CycleGAN:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='./config.yaml', help='Configuration file to use')
+    parser.add_argument('--cfg', type=str, default='config.yaml', help='Configuration file to use')
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -238,4 +239,4 @@ if __name__ == '__main__':
         cycle_gan.update_scheduler()
         if (epoch+1) % cfg_train['save_freq'] == 0:
             cycle_gan.save_model(epoch)
-        cycle_gan.visualize()
+        cycle_gan.visualize(epoch)
