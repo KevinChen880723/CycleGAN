@@ -1,7 +1,21 @@
+from this import d
 import cv2
 from torch.utils.data import Dataset
 from pathlib import Path
+import torch
 import torchvision.transforms as transform
+import torchvision.transforms.functional as F
+import random
+
+class MyRandomCrop(object):
+    def __init__(self, max_crop_size) -> None:
+        self.max_crop_size = max_crop_size
+    def __call__(self, img):
+        (h, w) = img.shape[-2:]
+        crop_size = min(min(h, w), self.max_crop_size)
+        top = random.randint(0, h-crop_size)
+        left = random.randint(0, w-crop_size)
+        return F.crop(img, top=top, left=left, height=crop_size, width=crop_size)
 
 class CycleGANDataset(Dataset):
     def __init__(self, domainA_path, name_filter_domainA, domainB_path, name_filter_domainB, image_size, crop_size, max_data_per_epoch, mode='train') -> None:
@@ -25,7 +39,7 @@ class CycleGANDataset(Dataset):
         if image_size != -1:
             compose.append(transform.Resize(int(image_size), transform.InterpolationMode.BICUBIC))
         if crop_size != -1:          
-            compose.append(transform.RandomCrop(int(crop_size)))
+            compose.append(MyRandomCrop(int(crop_size)))
                         
         if self.mode == 'train':
             compose.append(transform.RandomHorizontalFlip())

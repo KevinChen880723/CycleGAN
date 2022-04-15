@@ -225,7 +225,7 @@ class CycleGAN:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='config.yaml', help='Configuration file to use')
+    parser.add_argument('--cfg', type=str, default='./config.yaml', help='Configuration file to use')
     args = parser.parse_args()
 
     with open(args.cfg) as f:
