@@ -17,6 +17,15 @@ class MyRandomCrop(object):
         left = random.randint(0, w-crop_size)
         return F.crop(img, top=top, left=left, height=crop_size, width=crop_size)
 
+class MyResize(object):
+    def __init__(self, image_width) -> None:
+        self.image_width = image_width
+    def __call__(self, img):
+        (h, w) = img.shape[-2:]
+        new_h = int(h * (self.image_width / w)) // 4 * 4
+        new_w = self.image_width // 4 * 4
+        return F.resize(img, (new_h, new_w), transform.InterpolationMode.BICUBIC)
+
 class CycleGANDataset(Dataset):
     def __init__(self, domainA_path, name_filter_domainA, domainB_path, name_filter_domainB, image_size, crop_size, max_data_per_epoch, mode='train') -> None:
         super().__init__()
@@ -37,7 +46,7 @@ class CycleGANDataset(Dataset):
         # but also normalizes the data in the range [0.0, 1.0] and changes the shape from (H x W x C) to (C x H x W).
         compose = [transform.ToTensor()]
         if image_size != -1:
-            compose.append(transform.Resize(int(image_size), transform.InterpolationMode.BICUBIC))
+            compose.append(MyResize(int(image_size)))
         if crop_size != -1:          
             compose.append(MyRandomCrop(int(crop_size)))
                         
