@@ -1,6 +1,7 @@
 import os
 import cv2
 import yaml
+import shutil
 import argparse
 from tqdm import tqdm
 from itertools import chain
@@ -196,6 +197,8 @@ class CycleGAN:
                 pred_B2A = self.netG_B2A(self.realB)
             img_pred_A2B = get_visualization(pred_A2B)
             img_pred_B2A = get_visualization(pred_B2A)
+            self.realA = get_visualization(self.realA)
+            self.realB = get_visualization(self.realB)
 
             if not os.path.isdir('{}/{}/visualization/A2B/{}'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i)):
                 os.makedirs('{}/{}/visualization/A2B/{}'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i))
@@ -204,6 +207,9 @@ class CycleGAN:
 
             cv2.imwrite('{}/{}/visualization/A2B/{}/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i, epoch) , img_pred_A2B)
             cv2.imwrite('{}/{}/visualization/B2A/{}/epoch_{}.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i, epoch) , img_pred_B2A)
+            if epoch == 0:
+                cv2.imwrite('{}/{}/visualization/A2B/{}/input.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i) , self.realA)
+                cv2.imwrite('{}/{}/visualization/B2A/{}/input.png'.format(self.cfg['output_folder'], self.cfg_train['model_description'], i) , self.realB)
             
 
     def train_one_epoch(self, epoch):
@@ -234,6 +240,9 @@ if __name__ == '__main__':
     print(torch.cuda.is_available())
     fix_seeds(3407)
     cycle_gan = CycleGAN(cfg)
+    if not os.path.isdir('{}/{}'.format(cfg['output_folder'], cfg_train['model_description'])):
+        os.makedirs('{}/{}'.format(cfg['output_folder'], cfg_train['model_description']))
+    shutil.copy(args.cfg, '{}/{}'.format(cfg['output_folder'], cfg_train['model_description']))
     for epoch in range(cfg_train['total_epochs']):
         cycle_gan.train_one_epoch(epoch)
         cycle_gan.update_scheduler()

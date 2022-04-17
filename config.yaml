@@ -2,12 +2,12 @@ output_folder: /work/kevin8ntust/output
 
 data: 
   image_size: -1  # If image_size == -1, don't resize the image
-  crop_size: -1  # The size for the random crop
-  max_data_per_epoch: -1
-  name_filter_domainA: '*jpg'
-  name_filter_domainB: '*jpg'
-  domainA_path: ../data/satellite/maps/trainA
-  domainB_path: ../data/satellite/maps/trainB
+  crop_size: 256  # The size for the random crop
+  max_data_per_epoch: 1500
+  name_filter_domainA: '*png'
+  name_filter_domainB: '*png'
+  domainA_path: ../data/CityScapes/leftImg8bit/train
+  domainB_path: ../data/IDD/IDD_Segmentation/leftImg8bit/train
 
 train:
   lr: 0.0002
@@ -15,10 +15,10 @@ train:
   batch_size: 1
   total_epochs: 200
   start_reduce_lr_epoch: 100
-  model_description: Satellite
+  model_description: German2India-WithIdentityLoss
   save_freq: 1
   lambda:
-    identity: -1 # 5.0 (If identity is set to -1, loss_G_total will not including identity loss)
+    identity: 5.0 # -1 # 5.0 (If identity is set to -1, loss_G_total will not including identity loss)
     cycle: 10.0
 
 val:
@@ -27,10 +27,10 @@ val:
   data:
     image_size: -1  # If image_size == -1, don't resize the image
     crop_size: -1  # The size for the random crop
-    name_filter_domainA: '*jpg'
-    name_filter_domainB: '*jpg'
-    domainA_path: ../data/satellite/maps/valA
-    domainB_path: ../data/satellite/maps/valB
+    name_filter_domainA: '*png'
+    name_filter_domainB: '*png'
+    domainA_path: ../data/CityScapes/leftImg8bit/val
+    domainB_path: ../data/IDD/IDD_Segmentation/leftImg8bit/val
 # /home/kevin8ntust/deepLearning/CycleGAN
 model:
   use_variant: false
