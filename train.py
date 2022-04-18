@@ -97,34 +97,39 @@ class CycleGAN:
         self.identity_loss = torch.nn.L1Loss()
         self.adversarial_loss = torch.nn.MSELoss()
 
-    def get_G_predictions(self):
-        self.fakeB = self.netG_A2B(self.realA)
-        self.fakeA = self.netG_B2A(self.realB)
-        self.cycleA = self.netG_B2A(self.fakeB)
-        self.cycleB = self.netG_A2B(self.fakeA)
-        if self.cfg['train']['lambda']['identity'] > 0:
-            self.realA2A = self.netG_B2A(self.realA)
-            self.realB2B = self.netG_A2B(self.realB)
-
     def update_G(self):
-        ''' 1. Compute losses and do back-propagation on two generators '''
-        if self.cfg['train']['lambda']['identity'] < 0:
-            identity_loss_A = identity_loss_B = 0.0
-        else: 
-            identity_loss_A = self.identity_loss(self.realA2A, self.realA) * self.cfg['train']['lambda']['identity']
-            identity_loss_B = self.identity_loss(self.realB2B, self.realB) * self.cfg['train']['lambda']['identity']
+        self.optimG.zero_grad()
+
+        # Update A2B phase
+        self.fakeB = self.netG_A2B(self.realA)
+        self.cycleA = self.netG_B2A(self.fakeB)
 
         cycle_loss_A = self.cycle_loss(self.cycleA, self.realA) * self.cfg['train']['lambda']['cycle']
-        cycle_loss_B = self.cycle_loss(self.cycleB, self.realB) * self.cfg['train']['lambda']['cycle'] 
-        score_fakeA_from_netD_A = self.netD_A(self.fakeA)
-        adversarial_loss_A = self.adversarial_loss(score_fakeA_from_netD_A, torch.ones_like(score_fakeA_from_netD_A))
         score_fakeB_from_netD_B = self.netD_B(self.fakeB)
         adversarial_loss_B = self.adversarial_loss(score_fakeB_from_netD_B, torch.ones_like(score_fakeB_from_netD_B))
-        total_G_losses = cycle_loss_A + cycle_loss_B + identity_loss_A + identity_loss_B + adversarial_loss_A + adversarial_loss_B
+        cycle_and_adversarial_loss_GA2B = cycle_loss_A + adversarial_loss_B
+        cycle_and_adversarial_loss_GA2B.backward()
 
-        ''' 2. Update two generators '''
-        self.optimG.zero_grad()
-        total_G_losses.backward()
+        # Update B2A phase
+        self.fakeA = self.netG_B2A(self.realB)
+        self.cycleB = self.netG_A2B(self.fakeA)
+
+        cycle_loss_B = self.cycle_loss(self.cycleB, self.realB) * self.cfg['train']['lambda']['cycle']
+        score_fakeA_from_netD_A = self.netD_A(self.fakeA)
+        adversarial_loss_A = self.adversarial_loss(score_fakeA_from_netD_A, torch.ones_like(score_fakeA_from_netD_A))
+        cycle_and_adversarial_loss_GB2A = cycle_loss_B + adversarial_loss_A
+        cycle_and_adversarial_loss_GB2A.backward()
+
+        # Update Identity loss
+        if self.cfg['train']['lambda']['identity'] > 0:
+            self.realA2A = self.netG_B2A(self.realA)
+            identity_loss_A = self.identity_loss(self.realA2A, self.realA) * self.cfg['train']['lambda']['identity']
+            identity_loss_A.backward()
+
+            self.realB2B = self.netG_A2B(self.realB)
+            identity_loss_B = self.identity_loss(self.realB2B, self.realB) * self.cfg['train']['lambda']['identity']
+            identity_loss_B.backward()
+        
         self.optimG.step()
 
     def get_D_predictions(self):
@@ -222,9 +227,7 @@ class CycleGAN:
             self.realB = data['B'].to(device)
 
             ''' 1. Update the two generators '''
-            self.get_G_predictions()
             self.update_G()
-            
             ''' 2. Update the two discriminators '''
             self.get_D_predictions()
             self.update_D()
