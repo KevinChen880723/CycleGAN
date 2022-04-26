@@ -34,7 +34,8 @@ class CycleGAN:
         self.hitory_buffer_fakeA = history_buffer(50)
         self.hitory_buffer_fakeB = history_buffer(50)
 
-        self.CreateModels(self.cfg_model['num_hourglass'], 
+        self.CreateModels(self.cfg_model.get('num_residual_blocks', 9),
+                          self.cfg_model['num_hourglass'], 
                           self.cfg_model['use_variant'],
                           self.cfg_train['device'])
 
@@ -65,9 +66,9 @@ class CycleGAN:
 
         self.CreateValidationDataloaders(batch_size=1)
 
-    def CreateModels(self, num_hourglass, use_variant, device='cuda'):
-        self.netG_A2B = Generator(num_hourglass, use_variant).to(device)
-        self.netG_B2A = Generator(num_hourglass, use_variant).to(device)
+    def CreateModels(self, num_residual_blocks, num_hourglass, use_variant, device='cuda'):
+        self.netG_A2B = Generator(num_residual_blocks, num_hourglass, use_variant).to(device)
+        self.netG_B2A = Generator(num_residual_blocks, num_hourglass, use_variant).to(device)
         self.netD_A = Discriminator().to(device)
         self.netD_B = Discriminator().to(device)
     
@@ -181,6 +182,25 @@ class CycleGAN:
             os.makedirs('{}/{}/model'.format(self.cfg['output_folder'], self.cfg_train['model_description']))
         torch.save(check_point, "{}/{}/model/epoch_{}.pth".format(self.cfg['output_folder'], self.cfg_train['model_description'], epoch))
 
+    def load_model(self):
+        check_point = torch.load(self.cfg['train']['path_pretrained_model'], map_location=self.cfg['train']['device'])
+        # Load models
+        print('Loading models...')
+        self.netG_A2B.load_state_dict(check_point['model_state_dict']['GA2B'])
+        self.netG_B2A.load_state_dict(check_point['model_state_dict']['GB2A'])
+        self.netD_A.load_state_dict(check_point['model_state_dict']['DA'])
+        self.netD_B.load_state_dict(check_point['model_state_dict']['DB'])
+        # Load optimizers
+        print('Loading optimizers...')
+        self.optimG.load_state_dict(check_point['optimizer_state_dict']['optimG'])
+        self.optimD.load_state_dict(check_point['optimizer_state_dict']['optimD'])
+        # Load learning rate schedulers
+        print('Loading learning rate schedulers...')
+        self.lr_scheduler_G.load_state_dict(check_point['scheduler_state_dict']['lr_scheduler_G'])
+        self.lr_scheduler_D.load_state_dict(check_point['scheduler_state_dict']['lr_scheduler_D'])
+
+        return check_point['epoch']
+
     def visualize(self, epoch):
         def get_visualization(tensor):
             tensor = torch.squeeze(tensor)
@@ -246,7 +266,11 @@ if __name__ == '__main__':
     if not os.path.isdir('{}/{}'.format(cfg['output_folder'], cfg_train['model_description'])):
         os.makedirs('{}/{}'.format(cfg['output_folder'], cfg_train['model_description']))
     shutil.copy(args.cfg, '{}/{}'.format(cfg['output_folder'], cfg_train['model_description']))
-    for epoch in range(cfg_train['total_epochs']):
+    epoch_start = 0
+    if cfg['train']['keep_train']:
+        print('Resume from {}'.format(cfg['train']['path_pretrained_model']))
+        epoch_start = cycle_gan.load_model()+1
+    for epoch in range(epoch_start, cfg_train['total_epochs']):
         cycle_gan.train_one_epoch(epoch)
         cycle_gan.update_scheduler()
         if (epoch+1) % cfg_train['save_freq'] == 0:
