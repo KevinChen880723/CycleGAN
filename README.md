@@ -29,15 +29,11 @@ First, to validate the correctness, we try the same experiment as in the paper.
 
 ### Cityscapes to IDD
 
-From the following results, we can understand:
+From the following results, we can notice:
 1. When transforming the high-resolution images like in Cityscapes, we should add up the identity loss, otherwise the results will look like negative film images.
 2. During the data pre-processing, it is better to use the random crop instead of resize, and the higher resolution preprocessed images help to get the better results.
 3. Using more residual blocks to train on the high-resolution images are not better, sometimes the buildings in the images will disappear.
 
-<details>
-
-<summary>Check the visualizations</summary>
-  
 <table>
   <tr>
     <td>Domain</td>
@@ -145,5 +141,3 @@ From the following results, we can understand:
     <td><img src="./results/German2India/B2A/withIdentity_Resize1024.png"></td>
   </tr>
 </table>
-
-</details>
