@@ -1,10 +1,10 @@
 # CycleGAN
 
-This project implements Cycle GAN from scratch and try to transform the images in the Cityscapes dataset to the IDD style.
+This project implements Cycle GAN from scratch and tries to transform the images in the Cityscapes dataset to the IDD style.
 
 ## Experimental Results
 
-First, to validate the correctness, we try the same experiment as in the paper.
+First, we try the same experiment as the paper to validate the correctness.
 
 ### Horse to Zebra
 
@@ -30,9 +30,9 @@ First, to validate the correctness, we try the same experiment as in the paper.
 ### Cityscapes to IDD
 
 From the following results, we can notice:
-1. When transforming the high-resolution images like in Cityscapes, we should add up the identity loss, otherwise the results will look like negative film images.
-2. During the data pre-processing, it is better to use the random crop instead of resize, and the higher resolution preprocessed images help to get the better results.
-3. Using more residual blocks to train on the high-resolution images are not better, sometimes the buildings in the images will disappear.
+1. When transforming the high-resolution images like in Cityscapes, we should add up the identity loss; otherwise, the results will look like negative film images.
+2. It is better to use the random crop instead of resizing during the data pre-processing. The higher resolution pre-processed images help get better results.
+3. Using more residual blocks to train on the high-resolution images is not better; sometimes, the buildings in the images will disappear.
 
 <table>
   <tr>
